@@ -1,7 +1,11 @@
+Theme.init();
+
 document.addEventListener('DOMContentLoaded', () => {
   Auth.init();
   UI.init();
   ItemForm.init();
+  Wishlist.init();
+  Looks.init();
 
   const session = Store.getSession();
   if (session) {
