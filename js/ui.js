@@ -13,11 +13,14 @@ const UI = (() => {
     document.getElementById('user-avatar').textContent = initials;
     document.getElementById('user-name').textContent = user.email.split('@')[0];
 
+    switchView('wardrobe');
     render();
     ApiService.fetchWeather();
     ApiService.fetchStylePeople();
     updateFilterCounts();
     renderEquippedItems();
+    Wishlist.render();
+    Looks.render();
   };
 
   const render = () => {
@@ -54,6 +57,7 @@ const UI = (() => {
     const forgotten = AppState.isForgotten(item);
     const days = item.lastWorn ? daysSince(item.lastWorn) : null;
     const icon = CATEGORY_ICONS[item.category] || '👕';
+    const isEquipped = AppState.equippedItems.includes(item.id);
 
     const imagePart = item.imageUrl
       ? `<img src="${item.imageUrl}" alt="${item.name}" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">`
@@ -82,7 +86,7 @@ const UI = (() => {
             ${days !== null ? `${days} дн. назад` : 'Не надевалась'}
           </div>
           <div class="card-actions">
-            <button class="card-action-btn wear" data-action="wear" data-id="${item.id}" title="Отметить как надетое">✓</button>
+            <button class="card-action-btn wear ${isEquipped ? 'active' : ''}" data-action="wear" data-id="${item.id}" title="${isEquipped ? 'Снять' : 'Отметить как надетое'}">${isEquipped ? '✓ Надето' : '✓'}</button>
             <button class="card-action-btn" data-action="edit" data-id="${item.id}" title="Редактировать">✏</button>
             <button class="card-action-btn delete" data-action="delete" data-id="${item.id}" title="Удалить">🗑</button>
           </div>
@@ -105,12 +109,17 @@ const UI = (() => {
   };
 
   const handleWear = (id) => {
-    const updated = AppState.wearItem(id);
-    if (updated) {
+    const result = AppState.wearItem(id);
+    if (!result) return;
+
+    if (result.action === 'worn') {
       Toast.show('✓ Отмечено как надетое', 'success');
-      render();
-      renderEquippedItems();
+    } else if (result.action === 'unworn') {
+      Toast.show('Вещь снята', 'info');
     }
+
+    render();
+    renderEquippedItems();
   };
 
   const handleEdit = (id) => {
@@ -118,45 +127,30 @@ const UI = (() => {
     if (item) ItemForm.openForEdit(item);
   };
 
-  let pendingDeleteId = null;
-  let pendingDeleteCard = null;
-
   const handleDelete = (id, cardEl) => {
-    pendingDeleteId = id;
-    pendingDeleteCard = cardEl;
-    Modal.open('modal-confirm-overlay');
-  };
-
-  const confirmDelete = () => {
-    if (!pendingDeleteId) return;
-    if (pendingDeleteCard) {
-      pendingDeleteCard.classList.add('removing');
-      pendingDeleteCard.addEventListener('animationend', () => {
-        AppState.deleteItem(pendingDeleteId);
-        pendingDeleteId = null;
-        pendingDeleteCard = null;
-        Modal.close('modal-confirm-overlay');
-        render();
-        Toast.show('✓ Вещь удалена', 'info');
-      }, { once: true });
-    } else {
-      AppState.deleteItem(pendingDeleteId);
-      pendingDeleteId = null;
-      Modal.close('modal-confirm-overlay');
+    ConfirmDialog.open(() => {
+      AppState.deleteItem(id);
       render();
+      renderEquippedItems();
       Toast.show('✓ Вещь удалена', 'info');
-    }
+    }, {
+      cardEl,
+      title: 'Удалить вещь?',
+      text: 'Это действие нельзя отменить. Вещь будет удалена из вашего гардероба навсегда.',
+    });
   };
-
-  
 
   const renderEquippedItems = () => {
-    const el=document.getElementById("equipped-items-list");
-    if(!el) return;
-    const items=AppState.items.filter(i=>AppState.equippedItems.includes(i.id));
-    if(!items.length){el.innerHTML="Пока ничего не надето";return;}
-    el.innerHTML=items.map(i=>`<div style="display:flex;justify-content:space-between;margin:6px 0;"><span>${i.name}</span><button data-remove-equipped="${i.id}">✕</button></div>`).join('');
-    el.querySelectorAll('[data-remove-equipped]').forEach(b=>b.onclick=()=>{AppState.removeEquipped(b.dataset.removeEquipped);renderEquippedItems();});
+    const el = document.getElementById('equipped-items-list');
+    if (!el) return;
+    const items = AppState.items.filter(i => AppState.equippedItems.includes(i.id));
+    if (!items.length) { el.innerHTML = 'Пока ничего не надето'; return; }
+    el.innerHTML = items.map(i => `<div style="display:flex;justify-content:space-between;margin:6px 0;"><span>${i.name}</span><button data-remove-equipped="${i.id}" title="Снять">✕</button></div>`).join('');
+    el.querySelectorAll('[data-remove-equipped]').forEach(b => b.onclick = () => {
+      AppState.removeEquipped(b.dataset.removeEquipped);
+      renderEquippedItems();
+      render();
+    });
   };
 
   const updateStats = () => {
@@ -184,7 +178,6 @@ const UI = (() => {
     inputs.forEach(input => {
       input.addEventListener('input', (e) => {
         AppState.filters.search = e.target.value;
-        // Sync all search inputs
         inputs.forEach(i => { if (i !== e.target) i.value = e.target.value; });
         render();
       });
@@ -287,8 +280,14 @@ const UI = (() => {
   const initAddButtons = () => {
     ['btn-add-desktop', 'btn-fab'].forEach(id => {
       document.getElementById(id)?.addEventListener('click', () => {
-        ItemForm.resetForm();
-        Modal.open('modal-item-overlay');
+        if (AppState.currentView === 'wishlist') {
+          Wishlist.openForCreate();
+        } else if (AppState.currentView === 'looks') {
+          Looks.openForCreate();
+        } else {
+          ItemForm.resetForm();
+          Modal.open('modal-item-overlay');
+        }
       });
     });
   };
@@ -301,12 +300,60 @@ const UI = (() => {
   };
 
   const initConfirmDelete = () => {
-    document.getElementById('btn-confirm-delete')?.addEventListener('click', confirmDelete);
-    document.getElementById('btn-cancel-delete')?.addEventListener('click', () => {
-      Modal.close('modal-confirm-overlay');
-    });
+    document.getElementById('btn-confirm-delete')?.addEventListener('click', ConfirmDialog.confirm);
+    document.getElementById('btn-cancel-delete')?.addEventListener('click', ConfirmDialog.cancel);
     document.getElementById('modal-confirm-overlay')?.addEventListener('click', (e) => {
-      if (e.target === e.currentTarget) Modal.close('modal-confirm-overlay');
+      if (e.target === e.currentTarget) ConfirmDialog.cancel();
+    });
+  };
+
+  const VIEW_CONTAINERS = {
+    wardrobe: ['app-body', 'filter-chips-bar'],
+    looks: ['looks-view'],
+    dashboard: ['dashboard-view'],
+    wishlist: ['wishlist-view'],
+  };
+
+  const switchView = (view) => {
+    AppState.currentView = view;
+
+    document.querySelectorAll('.view-tab').forEach(t => {
+      t.classList.toggle('active', t.dataset.view === view);
+    });
+
+    Object.entries(VIEW_CONTAINERS).forEach(([key, ids]) => {
+      ids.forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.style.display = (key === view) ? '' : 'none';
+      });
+    });
+
+    if (view === 'looks') Looks.render();
+    else if (view === 'dashboard') Dashboard.render();
+    else if (view === 'wishlist') Wishlist.render();
+  };
+
+  const initViewTabs = () => {
+    document.querySelectorAll('.view-tab').forEach(tab => {
+      tab.addEventListener('click', () => switchView(tab.dataset.view));
+    });
+  };
+
+
+  const initThemeToggle = () => {
+    const btn = document.getElementById('btn-theme-toggle');
+    if (!btn) return;
+
+    const updateIcon = () => {
+      const isDark = Theme.get() === 'dark';
+      btn.textContent = isDark ? '☀️' : '🌙';
+      btn.title = isDark ? 'Включить светлую тему' : 'Включить тёмную тему';
+    };
+
+    updateIcon();
+    btn.addEventListener('click', () => {
+      Theme.toggle();
+      updateIcon();
     });
   };
 
@@ -318,7 +365,9 @@ const UI = (() => {
     initAddButtons();
     initLogout();
     initConfirmDelete();
+    initViewTabs();
+    initThemeToggle();
   };
 
-  return { init, showAuth, showApp, render, renderEquippedItems };
+  return { init, showAuth, showApp, render, renderEquippedItems, switchView };
 })();
