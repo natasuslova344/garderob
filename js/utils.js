@@ -1,3 +1,27 @@
+const Theme = (() => {
+  const KEY = 'wardrobe_theme';
+
+  const get = () => localStorage.getItem(KEY) || 'light';
+
+  const apply = (theme) => {
+    document.documentElement.setAttribute('data-theme', theme);
+  };
+
+  const init = () => {
+    apply(get());
+  };
+
+  const toggle = () => {
+    const next = get() === 'dark' ? 'light' : 'dark';
+    localStorage.setItem(KEY, next);
+    apply(next);
+    return next;
+  };
+
+  return { init, get, toggle };
+})();
+
+
 const Toast = (() => {
   const container = document.getElementById('toast-container');
 
@@ -45,6 +69,56 @@ const Modal = (() => {
   return { open, close, closeAll };
 })();
 
+const ConfirmDialog = (() => {
+  let pendingAction = null;
+  let pendingCardEl = null;
+
+  const open = (action, opts = {}) => {
+    const {
+      cardEl = null,
+      title = 'Удалить?',
+      text = 'Это действие нельзя отменить.',
+    } = opts;
+
+    pendingAction = action;
+    pendingCardEl = cardEl;
+
+    const titleEl = document.getElementById('modal-confirm-title');
+    const textEl = document.getElementById('modal-confirm-text');
+    if (titleEl) titleEl.textContent = title;
+    if (textEl) textEl.textContent = text;
+
+    Modal.open('modal-confirm-overlay');
+  };
+
+  const confirm = () => {
+    if (!pendingAction) return;
+    const action = pendingAction;
+    const cardEl = pendingCardEl;
+    pendingAction = null;
+    pendingCardEl = null;
+
+    if (cardEl) {
+      cardEl.classList.add('removing');
+      cardEl.addEventListener('animationend', () => {
+        action();
+        Modal.close('modal-confirm-overlay');
+      }, { once: true });
+    } else {
+      action();
+      Modal.close('modal-confirm-overlay');
+    }
+  };
+
+  const cancel = () => {
+    pendingAction = null;
+    pendingCardEl = null;
+    Modal.close('modal-confirm-overlay');
+  };
+
+  return { open, confirm, cancel };
+})();
+
 
 const formatDate = (isoStr) => {
   if (!isoStr) return 'Не надевалась';
@@ -55,6 +129,17 @@ const formatDate = (isoStr) => {
 const daysSince = (isoStr) => {
   if (!isoStr) return null;
   return Math.floor((Date.now() - new Date(isoStr)) / (1000 * 60 * 60 * 24));
+};
+
+const formatPrice = (price) => {
+  const num = Number(price) || 0;
+  return num.toLocaleString('ru-RU') + ' ₽';
+};
+
+const extractWbArticle = (url) => {
+  if (!url) return null;
+  const match = String(url).match(/catalog\/(\d+)/);
+  return match ? match[1] : null;
 };
 
 const CATEGORY_ICONS = {
