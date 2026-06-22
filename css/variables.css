@@ -100,3 +100,38 @@ ul, ol {
     transition-duration: 0.01ms !important;
   }
 }
+
+
+[data-theme="dark"] {
+  --color-bg:            #1A1118;
+  --color-secondary:     #2D1F2A;
+  --color-tertiary:      #C98AA0;
+  --color-white:         #241A21;
+  --color-card-bg:       #2A1E27;
+  --color-text-primary:  #F0DDE5;
+  --color-text-secondary:#D4A8BA;
+  --color-text-muted:    #9A7080;
+  --color-border:        #3D2B36;
+  --color-overlay:       rgba(10, 6, 9, 0.7);
+
+  --shadow-sm:   0 1px 3px rgba(0, 0, 0, 0.4);
+  --shadow-md:   0 4px 12px rgba(0, 0, 0, 0.5);
+  --shadow-lg:   0 8px 24px rgba(0, 0, 0, 0.6);
+  --shadow-hover:0 12px 32px rgba(0, 0, 0, 0.7);
+}
+
+body,
+.header,
+.sidebar-left,
+.sidebar-right,
+.drawer,
+.card,
+.modal,
+.filter-chips-bar,
+.view-tabs,
+.auth-card {
+  transition:
+    background-color 0.25s ease,
+    border-color 0.25s ease,
+    color 0.25s ease;
+}
