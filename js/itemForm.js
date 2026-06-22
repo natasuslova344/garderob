@@ -1,5 +1,6 @@
 const ItemForm = (() => {
   let editingId = null;
+  let fromWishlistId = null; // set when the "add item" modal was opened via "Перенести в гардероб"
   let imagePreviewTimer = null;
 
   const fields = () => ({
@@ -119,6 +120,7 @@ const ItemForm = (() => {
     document.getElementById('name-char-count').textContent = '0/60';
     updateSaveBtn();
     editingId = null;
+    fromWishlistId = null;
     document.getElementById('modal-item-title').textContent = 'Новая вещь';
   };
 
@@ -135,6 +137,22 @@ const ItemForm = (() => {
     f.status.value = item.status;
     if (item.imageUrl) f.imageUrl.value = item.imageUrl;
     if (item.lastWorn) f.lastWorn.value = item.lastWorn.split('T')[0];
+
+    updateCharCount();
+    updateImagePreview();
+    updateSaveBtn();
+    Modal.open('modal-item-overlay');
+  };
+
+  const openForWishlist = (wishlistItem) => {
+    resetForm();
+    fromWishlistId = wishlistItem.id;
+    document.getElementById('modal-item-title').textContent = 'Добавить вещь из вишлиста';
+
+    const f = fields();
+    f.name.value = wishlistItem.name || '';
+    if (wishlistItem.category) f.category.value = wishlistItem.category;
+    if (wishlistItem.imageUrl) f.imageUrl.value = wishlistItem.imageUrl;
 
     updateCharCount();
     updateImagePreview();
@@ -161,9 +179,16 @@ const ItemForm = (() => {
       Toast.show('✓ Изменения сохранены', 'success');
     } else {
       AppState.addItem(data);
-      Toast.show('✓ Вещь добавлена в гардероб', 'success');
+      if (fromWishlistId) {
+        AppState.deleteWishlistItem(fromWishlistId);
+        Wishlist.render();
+        Toast.show('✓ Вещь перенесена в гардероб из вишлиста', 'success');
+      } else {
+        Toast.show('✓ Вещь добавлена в гардероб', 'success');
+      }
     }
 
+    fromWishlistId = null;
     Modal.close('modal-item-overlay');
     UI.render();
   };
@@ -215,5 +240,5 @@ const ItemForm = (() => {
     setupBlur();
   };
 
-  return { init, openForEdit, resetForm };
+  return { init, openForEdit, openForWishlist, resetForm };
 })();
